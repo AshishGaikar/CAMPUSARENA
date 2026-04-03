@@ -6,6 +6,8 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
+const path = require("path"); // ✅ ADDED
+
 const connectDB = require('./config/db');
 const errorHandler = require('./middlewares/errorHandler');
 const authRoutes = require('./routes/authRoutes');
@@ -17,14 +19,15 @@ const checkinRoutes = require('./routes/checkin');
 const favoriteRoutes = require('./routes/favoriteRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
 const commentRoutes = require('./routes/commentRoutes');
-console.log('Checkin routes loaded');
 const User = require('./models/User');
 
 const app = express();
 const server = http.createServer(app);
+
+// ✅ UPDATED Socket.IO CORS
 const io = socketIo(server, {
   cors: {
-    origin: 'http://localhost:3000',
+    origin: process.env.FRONTEND_URL || "*",
     methods: ['GET', 'POST']
   }
 });
@@ -34,15 +37,17 @@ connectDB();
 
 // Security middleware
 app.use(helmet());
+
+// ✅ UPDATED CORS
 app.use(cors({
-  origin: 'http://localhost:3000',
+  origin: process.env.FRONTEND_URL || "*",
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 100
 });
 app.use('/api/', limiter);
@@ -64,7 +69,6 @@ app.use('/api/checkin', checkinRoutes);
 app.use('/api/favorites', favoriteRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/comments', commentRoutes);
-console.log('Checkin routes mounted at /api/checkin');
 
 // Health check
 app.get('/', (req, res) => {
@@ -73,6 +77,13 @@ app.get('/', (req, res) => {
     message: 'CampusArena API is running!',
     version: '2.0.0'
   });
+});
+
+// ✅ SERVE FRONTEND (ADDED)
+app.use(express.static(path.join(__dirname, "../client/build")));
+
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "../client/build/index.html"));
 });
 
 // Error handler
@@ -99,7 +110,6 @@ app.set('io', io);
 server.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
   
-  // Create default admins
   try {
     await User.createDefaultAdmins();
   } catch (error) {
